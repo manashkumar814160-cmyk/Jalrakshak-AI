@@ -5,9 +5,8 @@ from core.waterbalance import run_balance
 from core.decision import decide
 from core.crops import crop_status
 from core.advisory import explain
-from core.ui import apply_css
-st.set_page_config(page_title="Agronomist | JalRakshak",page_icon="🤝",layout="wide"); apply_css()
-init_db(); st.title("🤝 AI Agronomist"); farms=list_farms()
+from core.ui import page_header
+init_db(); page_header("Ask about this advice", "Ask a simple question about the current estimate."); farms=list_farms()
 if not farms: st.info("Set up a farm first."); st.stop()
 fid=st.selectbox("Farm",[f['id'] for f in farms],format_func=lambda x:next(f['name'] for f in farms if f['id']==x)); farm=get_farm(fid); weather,source,_=get_weather(farm['latitude'],farm['longitude']); result=decide(run_balance(weather,farm,get_events(fid),get_observations(fid)),farm,crop_status(farm['sowing_date'],harvest_date=farm['harvest_date'],crop=farm['crop']))
 lang=st.selectbox("Answer language",["English","Telugu","Hindi"]); question=st.text_input("Ask about the displayed estimate",placeholder="Why does the app recommend watering?")

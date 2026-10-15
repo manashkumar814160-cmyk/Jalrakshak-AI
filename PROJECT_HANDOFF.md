@@ -34,6 +34,14 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 | 11 UI polish/map | Partial | Green theme and Plotly charts. Map omitted. Check responsive rendering. |
 | 12 Final QA + demo | Not done | Compile, tests, app launch, offline smoke run, docs review and demo rehearsal outstanding. |
 
+## Latest UX pass
+
+- Navigation groups Home, Set up your farm, and Today's advice under `GET STARTED`; Weather, scenarios, questions, and logs under `EXPLORE`.
+- Home explains the two-step flow and has direct calls to action. Farm Setup uses everyday labels and explains soil and location fields. Dashboard leads with “What should I do today?”, a plain-language next step, understandable metrics, the input-quality definition, and optional calculation details.
+- Page-level `st.set_page_config` calls were removed so the app shell owns page setup and grouped navigation.
+- Streamlit dependency minimum is 1.50 because the refreshed UI uses the `width="stretch"` API.
+- Core tests and compilation rerun after this UX pass: 18 tests passed; compilation passed. Streamlit health endpoint returned HTTP 200 on `127.0.0.1:8765`; visual review is pending from the user because the browser policy denied my reload action.
+
 ## Verification log
 
 - Initial inspection: Python 3.12.10 available. Workspace had no Git repository; initialized a new `main` repository on 2026-10-16. No prior history existed.

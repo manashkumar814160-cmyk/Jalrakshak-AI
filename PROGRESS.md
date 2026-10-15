@@ -8,5 +8,7 @@ Status is recorded in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md). This log reflect
 - `python -m compileall .`: passed.
 - `python -m pytest --basetemp=.pytest-tmp -q`: 18 passed (2026-10-16).
 - `streamlit run app.py` started its local server; HTTP health check and AppTest were blocked/stalled in this environment. See handoff log.
+- UX pass: grouped navigation into “Get Started” and “Explore”; rewrote Home, Farm Setup, and Dashboard around a two-step farmer workflow with plain-language prompts and metrics.
+- Minimum Streamlit requirement is now 1.50 for the explicit responsive widget sizing used by the refreshed UI.
 - Optional live Gemini key remains blank by design.
 - ML forecast intentionally unavailable pending real historical data and validation.
