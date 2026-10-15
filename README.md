@@ -45,7 +45,8 @@ The test suite is designed to run without internet. Live API availability depend
 ## Pages
 
 - Farm Setup: create and manage local farm profiles.
-- Dashboard: recommendation, reasons, water estimate, weather, chart and assumptions.
+- Farm location: search for a town/village and choose a match, or enter coordinates manually. The selected coordinates power weather, harvest timing, and optional mapped soil.
+- Dashboard: step-by-step guidance, weather-based surface wet/dry outlook, irrigation recommendation, water estimate, and optional harvest record tied to the saved farm location.
 - Weather Intelligence: daily weather series with source/fallback labels.
 - Digital Twin: simulated forecast-only scenarios.
 - AI Agronomist: deterministic explanation; optional Gemini API.

@@ -10,6 +10,7 @@ def init_db():
         c.executescript('''CREATE TABLE IF NOT EXISTS farms(id INTEGER PRIMARY KEY,name TEXT NOT NULL,place TEXT NOT NULL,latitude REAL NOT NULL,longitude REAL NOT NULL,crop TEXT NOT NULL,soil TEXT NOT NULL,irrigation_method TEXT NOT NULL,area_acres REAL NOT NULL CHECK(area_acres>0),sowing_date TEXT NOT NULL,harvest_date TEXT,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS irrigation_events(id INTEGER PRIMARY KEY,farm_id INTEGER NOT NULL REFERENCES farms(id) ON DELETE CASCADE,date TEXT NOT NULL,gross_mm REAL NOT NULL CHECK(gross_mm>=0),method TEXT NOT NULL,note TEXT);
         CREATE TABLE IF NOT EXISTS observations(id INTEGER PRIMARY KEY,farm_id INTEGER NOT NULL REFERENCES farms(id) ON DELETE CASCADE,date TEXT NOT NULL,state TEXT NOT NULL CHECK(state IN ('dry','moist','wet')));
+        CREATE TABLE IF NOT EXISTS harvest_events(id INTEGER PRIMARY KEY,farm_id INTEGER NOT NULL REFERENCES farms(id) ON DELETE CASCADE,date TEXT NOT NULL,place TEXT NOT NULL,latitude REAL NOT NULL,longitude REAL NOT NULL,UNIQUE(farm_id,date));
         CREATE TABLE IF NOT EXISTS recommendations(id INTEGER PRIMARY KEY,farm_id INTEGER NOT NULL REFERENCES farms(id) ON DELETE CASCADE,date TEXT NOT NULL,action TEXT NOT NULL,net_mm REAL,gross_mm REAL,litres REAL,data_quality TEXT NOT NULL,payload TEXT NOT NULL,UNIQUE(farm_id,date));''')
 def save_farm(farm):
     required=("name","place","latitude","longitude","crop","soil","irrigation_method","area_acres","sowing_date")
@@ -43,6 +44,19 @@ def get_events(farm_id):
     with connect() as c: return [dict(r) for r in c.execute("SELECT * FROM irrigation_events WHERE farm_id=? ORDER BY date",(farm_id,))]
 def get_observations(farm_id):
     with connect() as c: return [dict(r) for r in c.execute("SELECT * FROM observations WHERE farm_id=? ORDER BY date",(farm_id,))]
+def mark_harvested_today(farm_id,day=None):
+    day=date.fromisoformat(str(day)) if day else date.today()
+    with connect() as c:
+        farm=c.execute("SELECT * FROM farms WHERE id=?",(farm_id,)).fetchone()
+        if farm is None: raise ValueError("Unknown farm")
+        c.execute("INSERT INTO harvest_events(farm_id,date,place,latitude,longitude) VALUES(?,?,?,?,?) ON CONFLICT(farm_id,date) DO UPDATE SET place=excluded.place,latitude=excluded.latitude,longitude=excluded.longitude",(farm_id,day.isoformat(),farm["place"],farm["latitude"],farm["longitude"]))
+        c.execute("UPDATE farms SET harvest_date=? WHERE id=?",(day.isoformat(),farm_id))
+        return dict(c.execute("SELECT * FROM harvest_events WHERE farm_id=? AND date=?",(farm_id,day.isoformat())).fetchone())
+def get_harvest_event(farm_id,day=None):
+    day=date.fromisoformat(str(day)) if day else date.today()
+    with connect() as c:
+        row=c.execute("SELECT * FROM harvest_events WHERE farm_id=? AND date=?",(farm_id,day.isoformat())).fetchone()
+        return dict(row) if row else None
 def save_recommendation(farm_id,day,result,data_quality="Medium"):
     with connect() as c: c.execute("INSERT INTO recommendations(farm_id,date,action,net_mm,gross_mm,litres,data_quality,payload) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(farm_id,date) DO UPDATE SET action=excluded.action,net_mm=excluded.net_mm,gross_mm=excluded.gross_mm,litres=excluded.litres,data_quality=excluded.data_quality,payload=excluded.payload",(farm_id,str(day),result["action"],result.get("net_mm"),result.get("gross_mm"),result.get("litres"),data_quality,json.dumps(result)))
 def history(farm_id):

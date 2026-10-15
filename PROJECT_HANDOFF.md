@@ -26,6 +26,7 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 | 3 Water balance + decisions | Implemented; unit tests pass | Pure calculation module; uses actual use after stress coefficient. Broader mass-balance examples still needed. |
 | 4 Database + farm setup | Implemented; CRUD unit test passes | SQLite CRUD, farm form, logs and observations. End-to-end restart persistence not manually checked. |
 | 5 Dashboard + weather | Implemented; server started | Recommendation card, weather summary, chart and disclaimer. Data-quality grading is conservative (Medium live, Low sample). |
+| 5a Weather harvest outlook, optional soil map/photo | Implemented; 28 tests pass | Crop-calendar date plus forecast rain watch. Optional SoilGrids lookup and camera/Gemini surface estimate; API key blank. SoilGrids REST availability is unreliable/current docs say paused. |
 | 6 Digital Twin | Implemented; scenario unit test passes | Forecast-only scenario modifiers and presets. Optimizer not wired into UI. |
 | 7 Offline UX + core tests | Basic suite passes | 18 tests pass; mock coverage and page smoke tests still needed. |
 | 8 ML forecast | Intentionally unavailable | No real training data. Keep separate surface-moisture target and honest fallback. |
@@ -42,6 +43,12 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 - Streamlit dependency minimum is 1.50 because the refreshed UI uses the `width="stretch"` API.
 - Runtime reported `TypeError` for unsupported `type=` on `st.page_link`; removed the argument from all page links. Home now uses a high-contrast green gradient hero, the app background has a soft green/gold gradient, and sidebar/card contrast was strengthened.
 - Core tests and compilation rerun after this UX pass: 18 tests passed; compilation passed. Streamlit health endpoint returned HTTP 200 on `127.0.0.1:8765`; visual review is pending from the user because the browser policy denied my reload action.
+- Dashboard workflow now explains field selection, surface outlook, irrigation advice, field notes, and harvest recording. Surface outlook uses recent observed daily weather and states it is not a soil measurement. Rules: >=5 mm latest observed day or >=8 mm over last three observed days means “Likely wet”; >=2 mm means “Likely drying”; no significant rain plus average high >=32°C or ET0 >=5 mm/day means “Likely dry”; warm, nearly rain-free days can show “Slightly dry.” Thresholds are illustrative and should be tuned against local field observations.
+- “Record harvest today” stores date and selected field's saved place/coordinates, idempotently per field/day. This uses farm setup location; the app does not capture device GPS. A recorded harvest changes today's crop status to fallow for irrigation advice.
+- Farm location controls were outside the submit form so changing a search query refreshes only after a deliberate Search click; location dropdown and coordinate-entry mode are always visible. Dashboard links directly to Farm Setup. Soil map/camera controls sit in a collapsed optional expander.
+- Harvest timing shows the crop-calendar or entered expected date plus a near-date rain watch; it does not claim forecast weather can prove crop maturity. Camera input is held in memory for the page session and photo analysis is optional Gemini vision; prompt explicitly excludes colour as a moisture cue. API key remains blank.
+- 2026-10-16 verification: `python -m compileall app.py pages core tests` passed; `python -m pytest --basetemp=.pytest-tmp -q` passed (**28 passed**); `git diff --check` passed with only CRLF normalization warnings. Live-mode Streamlit is running on `127.0.0.1:8766`; `/_stcore/health` returned HTTP 200. Port 8765 was unavailable when starting the revised live-mode process. Live weather still depends on API/network reachability; fallback uses cache or visibly labelled sample weather.
+- AppTest smoke run for the standalone farm page did not return within the 15-second timeout; no page-render pass is claimed. The location picker logic and server health were checked; visual review remains with the user.
 
 ## Verification log
 
@@ -59,6 +66,7 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 - `GEMINI_API_KEY=` intentionally blank in `.env.example`. Optional Gemini explanations work only after the owner places their key in a local, untracked `.env` file.
 - `GEMINI_MODEL` defaults to `gemini-3.8-flash`; it can be changed in `.env` if account/model availability differs.
 - No key expected for Open-Meteo public endpoints. Network can be unavailable; offline sample mode is provided.
+- Photo classification requires `GEMINI_API_KEY` and internet. No key is in the repo; captured photos are not persisted. SoilGrids lookup is best-effort and currently may be unavailable; manually selected soil remains the fallback.
 
 ## Known implementation gaps to address
 
