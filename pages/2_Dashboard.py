@@ -12,7 +12,7 @@ init_db(); farms=list_farms()
 page_header("Step 2 · Today's advice", "A simple estimate for your selected field, with the reasons behind it.")
 if not farms:
     st.info("Add your field details first. It only takes about a minute.")
-    st.page_link("pages/1_Farm_Setup.py",label="Set up your farm",icon="🌾",type="primary")
+    st.page_link("pages/1_Farm_Setup.py",label="Set up your farm",icon="🌾")
     st.stop()
 ids=[x["id"] for x in farms]; default=st.session_state.get("farm_id",ids[0]); fid=st.selectbox("Which field?",ids,index=ids.index(default) if default in ids else 0,format_func=lambda x:next(f["name"] for f in farms if f["id"]==x)); farm=get_farm(fid)
 try:

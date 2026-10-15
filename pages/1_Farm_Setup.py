@@ -27,7 +27,7 @@ with st.form("farm"):
 if submitted:
     try:
         fid=save_farm({"name":name.strip() or "My field","place":selected["name"],"latitude":selected["latitude"],"longitude":selected["longitude"],"crop":crop,"soil":soil,"irrigation_method":method,"area_acres":area,"sowing_date":sowing.isoformat(),"harvest_date":harvest.isoformat() if harvest else None}); st.session_state["farm_id"]=fid; st.success("Field saved. Next, open Today’s advice.")
-        st.page_link("pages/2_Dashboard.py",label="Go to today's advice",icon="✅",type="primary")
+        st.page_link("pages/2_Dashboard.py",label="Go to today's advice",icon="✅")
     except Exception: st.error("Could not save this field. Check the dates and details, then try again.")
 farms=list_farms()
 if farms:

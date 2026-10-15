@@ -1,16 +1,21 @@
 import streamlit as st
 from core.config import OFFLINE
 from core.db import init_db, list_farms
-from core.ui import disclaimer, page_header
+from core.ui import disclaimer
 
 init_db()
 farms = list_farms()
 
-page_header("JalRakshak AI", "Predict the Need. Save Every Drop.")
-st.markdown("## A clearer way to decide when to water")
-st.write(
-    "Add a few details about your field. JalRakshak checks weather and crop information "
-    "to estimate whether watering may be needed today, and explains why."
+st.markdown(
+    """
+    <section class="hero">
+      <div class="hero-kicker">JALRAKSHAK AI · SMART IRRIGATION GUIDE</div>
+      <h1>Know when it may be time to water.</h1>
+      <p>Set up your field once. Get a simple, explainable estimate for today and know when to check again.</p>
+      <div class="hero-tagline">Predict the Need. Save Every Drop.</div>
+    </section>
+    """,
+    unsafe_allow_html=True,
 )
 if OFFLINE:
     st.warning("Demo mode is on. The weather shown is sample data, not today's actual forecast.")
@@ -23,13 +28,13 @@ with left:
     with st.container(border=True):
         st.markdown("#### 1 · Tell us about your field")
         st.write("Choose its location, crop, soil, size and watering method.")
-        st.page_link("pages/1_Farm_Setup.py", label="Set up a farm", icon="🌾", type="primary")
+        st.page_link("pages/1_Farm_Setup.py", label="Set up a farm", icon="🌾")
 with right:
     with st.container(border=True):
         st.markdown("#### 2 · Read today's advice")
         st.write("See whether to water, wait, or check again after expected rain.")
         if farms:
-            st.page_link("pages/2_Dashboard.py", label="See today's advice", icon="✅", type="primary")
+            st.page_link("pages/2_Dashboard.py", label="See today's advice", icon="✅")
         else:
             st.button("Set up a farm first", disabled=True, width="stretch")
 

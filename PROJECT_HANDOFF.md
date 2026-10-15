@@ -40,6 +40,7 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 - Home explains the two-step flow and has direct calls to action. Farm Setup uses everyday labels and explains soil and location fields. Dashboard leads with “What should I do today?”, a plain-language next step, understandable metrics, the input-quality definition, and optional calculation details.
 - Page-level `st.set_page_config` calls were removed so the app shell owns page setup and grouped navigation.
 - Streamlit dependency minimum is 1.50 because the refreshed UI uses the `width="stretch"` API.
+- Runtime reported `TypeError` for unsupported `type=` on `st.page_link`; removed the argument from all page links. Home now uses a high-contrast green gradient hero, the app background has a soft green/gold gradient, and sidebar/card contrast was strengthened.
 - Core tests and compilation rerun after this UX pass: 18 tests passed; compilation passed. Streamlit health endpoint returned HTTP 200 on `127.0.0.1:8765`; visual review is pending from the user because the browser policy denied my reload action.
 
 ## Verification log
