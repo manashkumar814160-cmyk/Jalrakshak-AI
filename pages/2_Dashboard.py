@@ -1,26 +1,29 @@
 import streamlit as st
-import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from datetime import date
+from html import escape
 from core.db import init_db,list_farms,get_farm,get_events,get_observations,save_recommendation,mark_harvested_today,get_harvest_event
 from core.weather import get_weather
 from core.waterbalance import run_balance
 from core.decision import decide
 from core.decision import ACTION_LABELS
-from core.crops import crop_status
-from core.ui import disclaimer,page_header
+from core.crops import crop_status,CROPS
+from core.ui import disclaimer
 from core.field_condition import estimate_field_condition
 from core.harvest import harvest_weather_outlook
 from core.soil_lookup import lookup_soil
 from core.vision import inspect_soil_photo
 from core.config import GEMINI_API_KEY
 init_db(); farms=list_farms()
-page_header("Step 2 · Today's advice", "A simple estimate for your selected field, with the reasons behind it.")
 if not farms:
+    st.markdown('<section class="hero dashboard-hero"><div class="hero-kicker">JALRAKSHAK AI · FIELD DASHBOARD</div><h1>Know when it may be time to water.</h1><p>Set up a field location to see local weather, crop timing and a clear irrigation estimate.</p></section>',unsafe_allow_html=True)
     st.info("Add your field details first. It only takes about a minute.")
     st.page_link("pages/1_Farm_Setup.py",label="Set up your farm",icon="🌾")
     st.stop()
-ids=[x["id"] for x in farms]; default=st.session_state.get("farm_id",ids[0]); fid=st.selectbox("Which field?",ids,index=ids.index(default) if default in ids else 0,format_func=lambda x:next(f["name"] for f in farms if f["id"]==x)); farm=get_farm(fid)
-st.caption(f"Using weather for **{farm['place']}** (saved with this field). To use another location, select or set up a field there.")
+ids=[x["id"] for x in farms]; default=st.session_state.get("farm_id",ids[0]); fid=st.selectbox("Choose your field",ids,index=ids.index(default) if default in ids else 0,format_func=lambda x:next(f["name"] for f in farms if f["id"]==x)); farm=get_farm(fid)
+st.markdown(f'<section class="hero dashboard-hero"><div class="hero-kicker">JALRAKSHAK AI · FIELD DASHBOARD</div><h1>{escape(farm["name"])}</h1><p>Weather and crop guidance for {escape(farm["place"])} · {escape(farm["crop"])}</p></section>',unsafe_allow_html=True)
+st.caption(f"Using the saved field location: {farm['place']} ({farm['latitude']:.4f}, {farm['longitude']:.4f}).")
 st.page_link("pages/1_Farm_Setup.py",label="Choose or change location",icon="📍")
 with st.expander("How to use this page",expanded=True):
     st.markdown("1. Choose your field above.  2. Read **Field surface outlook** for a weather-based wet/dry estimate and **What should I do today?** for irrigation guidance.  3. Add watering or a field note under **Watering & field notes**.  4. If you harvested today, record it below.")
@@ -36,19 +39,32 @@ with st.container(border=True):
     st.write(condition["detail"])
     st.caption("Weather-based estimate from recent observed rainfall and temperature. This is not a soil measurement; check the field directly before watering.")
 harvest=harvest_weather_outlook(weather,farm["crop"],farm["sowing_date"],farm.get("harvest_date"))
-with st.container(border=True):
-    st.markdown("### Harvest timing and weather")
-    st.metric("Estimated harvest date",harvest["date"].strftime("%d %b %Y"))
-    st.write(f"**{harvest['status']}** · {harvest['detail']}")
-    st.caption("The date uses the crop's standard growing duration or your expected date. Forecast conditions help plan near harvest; they cannot confirm crop maturity.")
-with st.container(border=True):
-    st.markdown("### What should I do today?")
-    st.subheader(ACTION_LABELS[result["action"]])
-    for reason in result["reasons"]: st.write("• "+reason)
 historical=balance[~balance.is_forecast]; current=historical.iloc[-1] if len(historical) else balance.iloc[0]
 quality="Low" if "OFFLINE" in source else "Medium"
-st.markdown("### The estimate")
-cols=st.columns(3); cols[0].metric("Water near crop roots",f"{current.storage:.1f} mm",help="Estimated root-zone water storage, not measured soil moisture."); cols[1].metric("Crop water use today",f"{current.etc:.1f} mm",help="Estimated from weather and crop stage."); cols[2].metric("Input quality",quality,help="How complete/fresh the inputs are. This is not the chance that the advice is correct.")
+banner_class={"IRRIGATE_NOW":"recommend-danger","IRRIGATE_SOON":"recommend-warning","WAIT":"recommend-success","SKIP_RAIN_EXPECTED":"recommend-neutral","NO_CROP":"recommend-neutral"}.get(result["action"],"recommend-neutral")
+headline=ACTION_LABELS[result["action"]]
+amount=(f"Apply about {result['gross_mm']:.1f} mm · {result['litres']:.0f} litres for {farm['area_acres']:.2f} acres." if result["gross_mm"] is not None else result["reassess"])
+reasons=" ".join(escape(str(reason)) for reason in result["reasons"])
+st.markdown(f'<section class="recommend-banner {banner_class}"><h2>{escape(headline)}</h2><p>{escape(amount)}</p><p class="reason">{reasons}</p></section>',unsafe_allow_html=True)
+recent_observed=weather.loc[~weather["is_forecast"].fillna(True)].tail(7)
+rain_7d=float(recent_observed["rain"].fillna(0).sum()) if len(recent_observed) else 0.0
+storage_pct=max(0,min(100,100*float(current.storage)/max(float(current.taw),1e-9)))
+age_days=max(0,(date.today()-date.fromisoformat(farm["sowing_date"])).days)
+stages=CROPS[farm["crop"]].stages
+if status in ("fallow","not_yet_sown"): stage_label="Fallow" if status=="fallow" else "Not planted"
+elif age_days<stages[0]: stage_label="Initial"
+elif age_days<sum(stages[:2]): stage_label="Development"
+elif age_days<sum(stages[:3]): stage_label="Mid"
+elif age_days<sum(stages): stage_label="Late"
+else: stage_label="Past expected harvest"
+metric_cards=[(f"{storage_pct:.0f}%","Estimated storage",f"{current.storage:.1f} of {current.taw:.1f} mm in the modeled root zone"),(f"{current.etc:.1f} mm","Today's crop water use (ETc)","Weather-based estimate for the selected crop stage"),(f"{rain_7d:.1f} mm","Rain · last 7 observed days","Observed daily rainfall at the saved location"),(stage_label,"Crop stage",f"{farm['crop']} · {age_days} days after planting")]
+cols=st.columns(4)
+for col,(value,label,detail) in zip(cols,metric_cards):
+    col.markdown(f'<div class="glass-card"><div class="value">{escape(value)}</div><div class="label">{escape(label)}</div><div class="card-detail">{escape(detail)}</div></div>',unsafe_allow_html=True)
+with st.container(border=True):
+    st.markdown("#### Harvest timing and weather")
+    h1,h2=st.columns([1,3]); h1.metric("Estimated harvest date",harvest["date"].strftime("%d %b %Y")); h2.markdown(f"**{harvest['status']}**  \n{harvest['detail']}")
+    st.caption("Crop-calendar date plus weather watch; the forecast cannot confirm crop maturity.")
 if result["gross_mm"] is not None:
     st.markdown("### If you decide to water")
     a,b=st.columns(2); a.metric("Estimated water depth",f"{result['gross_mm']:.1f} mm"); b.metric("Estimated amount for this field",f"{result['litres']:.0f} litres")
@@ -98,6 +114,24 @@ with st.expander("Optional: soil map and live photo estimate"):
 with st.expander("Why am I seeing this advice?"):
     st.write("We estimate how much water may be available near the crop roots from the crop's age, soil type, weather, and watering or field notes you enter. Rain forecasts are uncertain. The result is a guide, not a soil measurement.")
     st.write("Input quality describes how complete and recent the information is. It is not a confidence score.")
-st.plotly_chart(px.line(balance,x="date",y=["storage","raw"],labels={"value":"Estimated water depth (mm)","date":"Date","variable":"Estimate"},title="How estimated water near the roots may change"),width="stretch")
+chart_data=balance.tail(21).copy()
+chart_data["available_water_threshold"]=chart_data["taw"]-chart_data["raw"]
+rain_etc=balance.tail(14)
+left_chart,right_chart=st.columns(2)
+with left_chart:
+    st.markdown("### 📈 Root-zone storage")
+    fig=go.Figure()
+    fig.add_trace(go.Scatter(x=chart_data["date"],y=chart_data["storage"],name="Estimated storage",mode="lines",line={"color":"#10b981","width":3},fill="tozeroy",fillcolor="rgba(16,185,129,.08)"))
+    fig.add_trace(go.Scatter(x=chart_data["date"],y=chart_data["available_water_threshold"],name="Stress threshold",mode="lines",line={"color":"#fb7185","width":2,"dash":"dash"}))
+    fig.update_layout(template="plotly_dark",paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(15,23,42,.35)",height=350,margin={"l":10,"r":10,"t":20,"b":10},legend={"orientation":"h","y":1.12},xaxis_title="Date",yaxis_title="Estimated water (mm)")
+    st.plotly_chart(fig,width="stretch",config={"displayModeBar":False})
+with right_chart:
+    st.markdown("### 📊 Rain vs crop water use")
+    fig2=make_subplots(specs=[[{"secondary_y":True}]])
+    fig2.add_trace(go.Bar(x=rain_etc["date"],y=rain_etc["rain"],name="Rain",marker_color="#38bdf8",opacity=.8),secondary_y=False)
+    fig2.add_trace(go.Scatter(x=rain_etc["date"],y=rain_etc["etc"],name="Crop water use (ETc)",mode="lines+markers",line={"color":"#fb923c","width":3},marker={"size":6}),secondary_y=True)
+    fig2.update_layout(template="plotly_dark",paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(15,23,42,.35)",height=350,margin={"l":10,"r":10,"t":20,"b":10},legend={"orientation":"h","y":1.12},barmode="overlay")
+    fig2.update_yaxes(title_text="Rain (mm)",secondary_y=False); fig2.update_yaxes(title_text="ETc (mm)",secondary_y=True)
+    st.plotly_chart(fig2,width="stretch",config={"displayModeBar":False})
 st.page_link("pages/6_Water_Usage.py",label="Add a watering log or field note",icon="💧")
 disclaimer()

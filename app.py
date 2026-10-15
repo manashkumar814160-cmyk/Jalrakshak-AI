@@ -7,7 +7,7 @@ st.set_page_config(
     page_title="JalRakshak AI",
     page_icon="🌱",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 apply_css()
 init_db()

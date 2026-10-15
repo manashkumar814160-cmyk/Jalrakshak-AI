@@ -16,5 +16,6 @@ Status is recorded in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md). This log reflect
 - Added tests for wet/dry rules and harvest location persistence: 24 tests pass; compileall passes.
 - Fixed Farm Setup location search: the town search and nearest-place dropdown now render before the farm form; press Search to refresh results, or enter coordinates. Added direct Dashboard link to change location. Soil map and camera moved under a collapsed optional section to reduce clutter.
 - Added harvest weather watch, optional SoilGrids lookup, and live camera photo capture with optional Gemini vision (color explicitly excluded). API key stays blank; photo held in session only. Current test count: 28 passed; compile passed. Live-mode server at http://127.0.0.1:8766 returned HTTP 200. Port 8765 unavailable at launch.
+- Implemented the provided dark glass dashboard visual direction using live farm data, conditional recommendation banners, four dynamic metrics and real Plotly root-zone/rain-vs-ETc charts. Sidebar now starts collapsed. Rechecked: 28 tests pass, compileall passes.
 - Optional live Gemini key remains blank by design.
 - ML forecast intentionally unavailable pending real historical data and validation.
