@@ -34,3 +34,5 @@ Status is recorded in [PROJECT_HANDOFF.md](PROJECT_HANDOFF.md). This log reflect
 - Latest checks: `python -m compileall -q app.py core pages tests` passed; `python -m pytest --basetemp=.pytest-tmp -q` passed (**36 passed**); `git diff --check` passed with expected Windows LF/CRLF warnings.
 
 - Dashboard UI visual pass: replaced generic/plain surfaces with a deep botanical theme, a field identity hero, next-step recommendation panel, elevated weather metrics and responsive layout. Found and fixed global CSS missing from the live browser: switched from `st.markdown` to `st.html` and explicitly load styles on Home, Farm Setup, Dashboard and Field Notes. Native dark theme added as fallback. Verified with browser screenshot and server HTTP 200.
+
+- Gemini soil-photo setup: key stored only in local ignored `.env`; authenticated model-list validation succeeded (HTTP 200; configured model present). No image was uploaded during validation. Actual Gemini photo request happens only when a user chooses “Estimate surface from photo.”
