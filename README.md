@@ -26,9 +26,9 @@ cp .env.example .env
 streamlit run app.py
 ```
 
-Set `JALRAKSHAK_OFFLINE=1` in `.env` for the clearly labelled bundled Hyderabad sample data. Default mode attempts Open-Meteo, then uses a successful local cache, then sample data. No weather API key is expected for the selected public endpoints. Optional Gemini answers require `GEMINI_API_KEY`; leave it blank for offline explanations. Never commit `.env` or put secrets in source.
+Set `JALRAKSHAK_OFFLINE=1` in `.env` only when you want the clearly labelled bundled Hyderabad demo data. The free Open-Meteo forecast and geocoding endpoints require no API key. The app uses a recent saved response if the network is unavailable; with no real cached data, it shows an unavailable state rather than presenting another location's demo weather as a live forecast. Optional Gemini photo analysis requires `GEMINI_API_KEY`; leave it blank to keep that feature disabled. Never commit `.env` or put secrets in source.
 
-Weather requests follow the [Open-Meteo forecast API](https://open-meteo.com/en/docs) and [geocoding API](https://open-meteo.com/en/docs/geocoding-api). The optional Gemini REST request follows the [official generateContent API](https://ai.google.dev/api/generate-content); its model name remains configurable.
+Weather requests follow the free [Open-Meteo forecast API](https://open-meteo.com/en/docs) and [geocoding API](https://open-meteo.com/en/docs/geocoding-api); neither needs a key. The app asks for supported hourly soil layers and daily crop-water inputs, validates responses, caches by coordinates, and labels unavailable/demo data. The optional Gemini REST request follows the [official generateContent API](https://ai.google.dev/api/generate-content); its model name remains configurable.
 
 The app creates its SQLite database at `data/jalrakshak.sqlite3` on first run. Back up or delete that file as needed; it is ignored by Git.
 
@@ -42,15 +42,11 @@ streamlit run app.py
 
 The test suite is designed to run without internet. Live API availability depends on network access.
 
-## Pages
+## Main workflow
 
-- Farm Setup: create and manage local farm profiles.
-- Farm location: search for a town/village and choose a match, or enter coordinates manually. The selected coordinates power weather, harvest timing, and optional mapped soil.
-- Dashboard: step-by-step guidance, weather-based surface wet/dry outlook, irrigation recommendation, water estimate, and optional harvest record tied to the saved farm location.
-- Weather Intelligence: daily weather series with source/fallback labels.
-- Digital Twin: simulated forecast-only scenarios.
-- AI Agronomist: deterministic explanation; optional Gemini API.
-- Water Usage: irrigation and field observation logs, history, and CSV export.
+The sidebar keeps the app to three steps: Home, Set up field, and Today's field outlook. A separate Field notes page records watering and observed soil condition. On setup, choose a town, allow browser location after pressing **Use my current location**, or enter coordinates. Soil can be selected manually or estimated from the selected location. The dashboard provides a weather-based wet/dry outlook, irrigation guidance, estimated harvest timing, and a harvest record. Optional soil map/photo tools are kept out of the main workflow.
+
+Older weather exploration, scenario, and question-answering pages are not linked from the simplified navigation.
 
 ## Limitations
 

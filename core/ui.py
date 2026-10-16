@@ -4,8 +4,9 @@ from .config import ROOT
 from .config import DISCLAIMER
 
 def apply_css():
-    css=(ROOT/"assets"/"styles.css").read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}</style>",unsafe_allow_html=True)
+    # st.markdown sanitizes <style> blocks on current Streamlit releases. st.html
+    # inserts CSS directly into the app document, so global theme selectors work.
+    st.html(ROOT/"assets"/"styles.css")
 
 def banner(message,kind="info"):
     getattr(st,kind if kind in ("info","warning","success","error") else "info")(message)

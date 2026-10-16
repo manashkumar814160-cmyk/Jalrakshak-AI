@@ -1,4 +1,6 @@
 import streamlit as st
+import asyncio
+import pandas as pd
 from datetime import date
 from html import escape
 
@@ -8,14 +10,16 @@ from core.db import (
     get_events, get_farm, get_harvest_event, get_observations, init_db,
     list_farms, mark_harvested_today, save_recommendation,
 )
-from core.decision import ACTION_LABELS, decide
+from core.decision import decide
 from core.field_condition import estimate_field_condition
 from core.harvest import harvest_weather_outlook
 from core.soil_lookup import lookup_soil
 from core.vision import inspect_soil_photo
 from core.waterbalance import run_balance
-from core.weather import get_weather
+from core.ui import apply_css
+from core.weather import get_weather_async
 
+apply_css()
 init_db()
 farms = list_farms()
 if not farms:
@@ -34,70 +38,118 @@ fid = st.selectbox(
 st.session_state["farm_id"] = fid
 farm = get_farm(fid)
 st.markdown(
-    f'<section class="hero dashboard-hero"><div class="hero-kicker">TODAY · {escape(farm["place"])}</div>'
-    f'<h1>{escape(farm["name"])}</h1><p>{escape(farm["crop"])} · {farm["area_acres"]:.2f} acres</p></section>',
+    f'<section class="hero dashboard-hero"><div class="dashboard-hero-top">'
+    f'<div class="hero-kicker"><span class="hero-kicker-dot"></span> YOUR FIELD · {escape(farm["place"])}</div>'
+    f'<span class="hero-live-pill"><span></span> TODAY’S OUTLOOK</span></div>'
+    f'<div class="dashboard-hero-content"><div><h1>{escape(farm["name"])}</h1>'
+    f'<p>{escape(farm["crop"])} <span class="hero-divider">/</span> {farm["area_acres"]:.2f} acres</p></div>'
+    f'<div class="hero-emblem" aria-hidden="true"><span>🌱</span><i></i><i></i><i></i></div></div>'
+    f'<div class="hero-foot"><span>LOCAL WEATHER</span><span>·</span><span>SOIL-AWARE GUIDANCE</span></div></section>',
     unsafe_allow_html=True,
 )
 st.page_link("pages/1_Farm_Setup.py", label="Change field location or details", icon="📍")
 st.caption("Choose a field, check its wet/dry outlook, then decide whether to water or record a harvest.")
 
 try:
-    weather, source, age = get_weather(farm["latitude"], farm["longitude"])
+    with st.spinner("Loading local weather and soil-moisture estimates…"):
+        weather, source, age = asyncio.run(get_weather_async(farm["latitude"], farm["longitude"]))
+    if weather.empty:
+        st.error("Live weather is unavailable, so today's advice can't be calculated for this field. Check your internet connection and reload.")
+        st.stop()
     events = get_events(fid)
     observations = get_observations(fid)
     status = "fallow" if get_harvest_event(fid) else crop_status(
         farm["sowing_date"], harvest_date=farm["harvest_date"], crop=farm["crop"],
     )
     balance = run_balance(weather, farm, events, observations)
-    result = decide(balance, farm, status)
-    save_recommendation(fid, date.today(), result, "Low" if "OFFLINE" in source else "Medium")
+    soil_estimate = weather.attrs.get("soil_moisture", {})
+    result = decide(balance, farm, status, soil_profile=soil_estimate)
+    is_sample = "SAMPLE WEATHER" in source or "OFFLINE" in source
+    save_recommendation(fid, date.today(), result, "Low" if is_sample else "Medium")
 except Exception:
     st.error("Could not prepare today's field outlook. Check the saved field details and weather connection, then try again.")
     st.stop()
 
-if "OFFLINE" in source:
-    st.warning("Sample weather is shown. It is not a local forecast.")
+if "SAMPLE WEATHER" in source or "OFFLINE" in source:
+    st.warning(f"{source}. This is demo data, not a forecast for {farm['place']}.")
 else:
     st.caption(f"Weather: {source}" + (f" · saved {age} hours ago" if age else ""))
 
 condition = estimate_field_condition(weather)
-condition_style = {
-    "Likely wet": "condition-wet",
-    "Likely drying": "condition-drying",
-    "Slightly dry": "condition-drying",
-    "Likely dry": "condition-dry",
-}.get(condition["label"], "condition-neutral")
-st.markdown(
-    f'<section class="condition-card {condition_style}"><div class="condition-kicker">FIELD SURFACE · RECENT WEATHER</div>'
-    f'<h2>{escape(condition["label"])}</h2><p>{escape(condition["detail"])}</p>'
-    '<small>Weather estimate only · check the soil before watering.</small></section>',
-    unsafe_allow_html=True,
-)
 
-action_copy = {
-    "NO_CROP": "No active crop is recorded for this field.",
-    "IRRIGATE_NOW": "The estimate suggests water may be needed. Check the soil before watering.",
-    "IRRIGATE_SOON": "Water may be needed soon. Check the field again tomorrow.",
-    "WAIT": "No irrigation is suggested right now. Check again if conditions change.",
-    "SKIP_RAIN_EXPECTED": "Rain may help soon. Check the field after it rains.",
+advice = {
+    "NO_CROP": ("Add a crop to get advice", "This field has no active crop saved."),
+    "IRRIGATE_NOW": ("Check the soil before watering", "The weather suggests water may be needed. Water only if the soil feels dry."),
+    "IRRIGATE_SOON": ("Check the field tomorrow", "The field may need water soon. Check the soil again before watering."),
+    "WAIT": ("No watering needed right now", "Recent conditions do not point to an immediate need. Check again if the weather changes."),
+    "SKIP_RAIN_EXPECTED": ("Wait for the rain", "Rain is expected soon. Check the soil after it rains before watering."),
 }
+advice_title, advice_text = advice.get(result["action"], advice["WAIT"])
+if result["action"] == "IRRIGATE_NOW" and condition["label"] == "Likely wet":
+    advice_text = "Recent rain may have left the field wet. Check the soil by hand before deciding to water."
+elif result["action"] == "IRRIGATE_NOW" and condition["label"] == "Likely drying":
+    advice_text = "The field may be drying. Check the soil by hand and water only if it feels dry."
 action_style = {
-    "IRRIGATE_NOW": "recommend-danger",
+    "IRRIGATE_NOW": "recommend-warning",
     "IRRIGATE_SOON": "recommend-warning",
     "WAIT": "recommend-success",
     "SKIP_RAIN_EXPECTED": "recommend-neutral",
     "NO_CROP": "recommend-neutral",
 }.get(result["action"], "recommend-neutral")
-watering_amount = ""
-if result["gross_mm"] is not None:
-    watering_amount = f"If you choose to water: about {result['gross_mm']:.1f} mm for this field ({result['litres']:.0f} litres)."
 st.markdown(
-    f'<section class="recommend-banner {action_style}"><h2>{escape(ACTION_LABELS[result["action"]].title())}</h2>'
-    f'<p>{escape(action_copy[result["action"]])}</p>'
-    + (f'<p class="reason">{escape(watering_amount)}</p>' if watering_amount else "")
-    + '</section>',
+    f'<section class="recommend-banner today-advice {action_style}"><div class="advice-mark" aria-hidden="true">✳</div>'
+    f'<div class="advice-copy"><div class="today-advice-kicker">YOUR NEXT STEP</div>'
+    f'<h2>{escape(advice_title)}</h2><p>{escape(advice_text)}</p></div>'
+    f'<div class="advice-side-note"><span>FIELD FIRST</span><small>Check before you water</small></div></section>',
     unsafe_allow_html=True,
 )
+
+# Keep the main page action-first. Detailed forecast numbers are available below.
+current = weather.attrs.get("current", {})
+st.markdown("#### Weather now")
+rain_24h = weather.attrs.get("rain_last_24h_mm")
+weather_cols = st.columns(4)
+weather_cols[0].metric("Temperature", f"{current['temperature_c']:.1f} °C" if current.get("temperature_c") is not None else "Unavailable")
+weather_cols[1].metric("Humidity", f"{current['humidity_pct']:.0f}%" if current.get("humidity_pct") is not None else "Unavailable")
+weather_cols[2].metric("Rain · last 24 hours", f"{rain_24h:.1f} mm" if rain_24h is not None else "Unavailable")
+weather_cols[3].metric("Wind", f"{current['wind_kmh']:.1f} km/h" if current.get("wind_kmh") is not None else "Unavailable")
+
+surface_vwc = soil_estimate.get("surface_m3_m3")
+deeper_vwc = soil_estimate.get("deeper_m3_m3")
+if surface_vwc is not None or deeper_vwc is not None:
+    st.markdown("#### Modelled soil moisture")
+    moisture_cols = st.columns(2)
+    for column, label, value in (
+        (moisture_cols[0], "Surface · 0–7 cm", surface_vwc),
+        (moisture_cols[1], "Deeper soil · 7–28 cm", deeper_vwc),
+    ):
+        column.metric(label, f"{value*100:.1f}%" if value is not None else "Unavailable",
+                      help=f"Volumetric water content in m³/m³: {value:.3f}" if value is not None else "The weather model did not return these soil layers.")
+    st.caption("Open-Meteo weather-model estimates, not physical soil measurements. Depth averages are calculated from its hourly model layers.")
+    if result.get("soil_moisture_used"):
+        st.caption("Today's recommendation uses the modelled soil layers to update the crop-specific root-zone estimate.")
+else:
+    st.info("Open-Meteo soil-moisture layers are unavailable for this forecast. The advice above uses the separate crop and soil water-balance estimate.")
+
+today_stamp = pd.to_datetime(current.get("time"), errors="coerce") if current.get("time") else pd.NaT
+today_for_forecast = today_stamp.date() if not pd.isna(today_stamp) else date.today()
+today_rows = weather[weather["date"].dt.date == today_for_forecast]
+today_et0 = today_rows.iloc[0]["et0"] if len(today_rows) else None
+st.caption(f"Today’s reference water loss (ET₀): {today_et0:.1f} mm" if pd.notna(today_et0) else "Today’s reference water loss (ET₀): unavailable")
+if current.get("time"):
+    st.caption(f"Weather updated: {current['time']}")
+
+with st.expander("See the 7-day forecast"):
+    forecast = weather.loc[weather["is_forecast"]].head(7).copy()
+    if forecast.empty:
+        st.info("The forecast is not available yet.")
+    else:
+        display = forecast[["date", "tmax", "rain", "et0"]].copy()
+        display.columns = ["Date", "High temperature (°C)", "Rain (mm)", "Water loss · ET₀ (mm)"]
+        rain_chart = forecast[["date", "rain"]].dropna().set_index("date").rename(columns={"rain": "Rain (mm)"})
+        if not rain_chart.empty:
+            st.bar_chart(rain_chart)
+        st.dataframe(display, hide_index=True, width="stretch")
 
 harvest = harvest_weather_outlook(
     weather, farm["crop"], farm["sowing_date"], farm.get("harvest_date"),
@@ -128,9 +180,9 @@ with st.expander("Optional: use a soil map or take a soil photo"):
         if mapped_soil:
             st.session_state[f"mapped_soil_{fid}"] = mapped_soil
         else:
-            st.info("The public soil map is unavailable right now. Keep the soil type selected during setup.")
+            st.info("No mapped soil estimate was returned for this location. The soil type saved during setup is still used for the advice.")
     if mapped_soil:
-        st.caption(f"Approximate mapped soil: {mapped_soil['soil']} · compare with the field itself.")
+        st.caption(f"Approximate mapped soil: {mapped_soil['soil']} · nearest mapped cell about {mapped_soil['distance_m']} m away. Compare with the field itself.")
     soil_for_photo = mapped_soil["soil"] if mapped_soil else farm["soil"]
     photo = st.camera_input("Take a close-up of bare soil", key=f"soilphoto{fid}")
     if photo and st.button("Estimate surface from photo", key=f"analyzesoil{fid}"):

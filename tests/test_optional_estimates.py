@@ -23,6 +23,28 @@ def test_soil_map_outage_returns_fallback(monkeypatch):
     assert lookup_soil(17.38,78.48) is None
     soil.lookup_soil.cache_clear()
 
+def test_soil_map_uses_nearest_valid_paired_pixel(monkeypatch):
+    import core.soil_lookup as soil
+    from PIL import Image
+
+    latitude, longitude = 17.385, 78.4867
+    target_x, target_y = soil._goode_xy(latitude, longitude)
+    sand = Image.new("I", (3, 3), 0)
+    clay = Image.new("I", (3, 3), 0)
+    sand.putpixel((1, 1), 350)
+    clay.putpixel((1, 1), 375)
+    origin = (target_x - 375, target_y + 375, 250, 250)
+    slightly_different_origin = (target_x - 375 + 1e-6, target_y + 375, 250, 250)
+    coverages = iter([(sand, origin), (clay, slightly_different_origin)])
+    monkeypatch.setattr(soil, "_coverage", lambda *args: next(coverages))
+    soil.lookup_soil.cache_clear()
+    try:
+        result = soil.lookup_soil(latitude, longitude)
+    finally:
+        soil.lookup_soil.cache_clear()
+    assert result["soil"] == "Clay loam"
+    assert result["distance_m"] == 0
+
 def test_photo_analysis_explains_missing_api_key(monkeypatch):
     import core.vision as vision
     monkeypatch.setattr(vision,"GEMINI_API_KEY","")

@@ -21,19 +21,19 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 | Phase | Status | Notes |
 |---|---|---|
 | 0 Scaffold and runnable app | Implemented; server started | Streamlit landing page, theme, requirements, env template, ignore rules, pages; fresh Git repository initialized. |
-| 1 Weather + offline fallback | Implemented; unit schema/sample checks pass | Open-Meteo geocoding/weather, timeout, cache, sample data, offline flag. Mock coverage still needed. |
+| 1 Weather + offline fallback | Implemented; live API and unit checks pass | Free Open-Meteo geocoding/weather, response validation, hourly fill for missing daily totals, coordinate-keyed cache, explicit demo mode. No key required. |
 | 2 Crop/soil calculations | Implemented; unit tests pass | Crop stages, root depth, adjusted p, soil water capacity, efficiencies, conversions. |
 | 3 Water balance + decisions | Implemented; unit tests pass | Pure calculation module; uses actual use after stress coefficient. Broader mass-balance examples still needed. |
 | 4 Database + farm setup | Implemented; CRUD unit test passes | SQLite CRUD, farm form, logs and observations. End-to-end restart persistence not manually checked. |
-| 5 Dashboard + weather | Implemented; server started | Recommendation card, weather summary, chart and disclaimer. Data-quality grading is conservative (Medium live, Low sample). |
-| 5a Weather harvest outlook, optional soil map/photo | Implemented; 28 tests pass | Crop-calendar date plus forecast rain watch. Optional SoilGrids lookup and camera/Gemini surface estimate; API key blank. SoilGrids REST availability is unreliable/current docs say paused. |
+| 5 Dashboard + weather | Implemented; server health HTTP 200 | Simple recommendation, current weather and soil-moisture summary, collapsed seven-day forecast, source label and unavailable-data handling. |
+| 5a Weather harvest outlook, optional soil map/photo | Implemented; 29 tests pass | Crop-calendar date plus forecast rain watch. Optional SoilGrids 250 m WCS lookup and camera/Gemini surface estimate; API key blank. Browser geolocation is requested only after a user presses its button. |
 | 6 Digital Twin | Implemented; scenario unit test passes | Forecast-only scenario modifiers and presets. Optimizer not wired into UI. |
-| 7 Offline UX + core tests | Basic suite passes | 18 tests pass; mock coverage and page smoke tests still needed. |
+| 7 Offline UX + core tests | Implemented; 36 tests pass | Mocked API coverage includes missing daily values and hourly recovery. Streamlit page-render smoke check still needs browser review. |
 | 8 ML forecast | Intentionally unavailable | No real training data. Keep separate surface-moisture target and honest fallback. |
 | 9 Optimizer + Water Usage | Partial | CSV, logs/history, basic optimizer function; no tested schedule replay/baseline comparison. |
 | 10 AI Agronomist | Partial | Deterministic fallback and optional Gemini request; API behavior not live-verified; credentials blank. |
-| 11 UI polish/map | Partial | Green theme and Plotly charts. Map omitted. Check responsive rendering. |
-| 12 Final QA + demo | Not done | Compile, tests, app launch, offline smoke run, docs review and demo rehearsal outstanding. |
+| 11 UI polish/map | Simplified | Sidebar exposes only Home, Set up field, Today's field outlook, and Field notes. Weather exploration, scenarios, and AI Q&A are removed from navigation; source files remain for possible future reintroduction. |
+| 12 Final QA + demo | Partial | Compile/tests pass; local server health endpoint returns HTTP 200. User browser review and demo rehearsal remain. |
 
 ## Latest UX pass
 
@@ -51,12 +51,21 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 - Harvest timing shows the crop-calendar or entered expected date plus a near-date rain watch; it does not claim forecast weather can prove crop maturity. Camera input is held in memory for the page session and photo analysis is optional Gemini vision; prompt explicitly excludes colour as a moisture cue. API key remains blank.
 - 2026-10-16 verification: `python -m compileall app.py pages core tests` passed; `python -m pytest --basetemp=.pytest-tmp -q` passed (**28 passed**); `git diff --check` passed with only CRLF normalization warnings. Live-mode Streamlit is running on `127.0.0.1:8766`; `/_stcore/health` returned HTTP 200. Port 8765 was unavailable when starting the revised live-mode process. Live weather still depends on API/network reachability; fallback uses cache or visibly labelled sample weather.
 - AppTest smoke run for the standalone farm page did not return within the 15-second timeout; no page-render pass is claimed. The location picker logic and server health were checked; visual review remains with the user.
+- 2026-10-16: Simplified sidebar to the core setup → outlook flow plus field notes. Removed Weather, scenario simulation, and AI Q&A from user-facing navigation. Kept requested harvest timing/record and optional soil map/photo tools.
+- 2026-10-16: Added explicit browser location permission flow (button click required), coordinate-entry and place-search fallbacks, and automatic soil-texture estimation during setup when the user selects “Not sure.” Soil lookup requests paired sand/clay coverage subsets from SoilGrids WCS and tolerates tiny GeoTIFF grid-coordinate differences. Mapped texture is approximate, not a field measurement. API key remains blank.
+- 2026-10-16: Screenshot showed the harvest action and soil/photo expander using pale text on a white surface. Added higher-specificity dark-theme CSS for Streamlit buttons and expander summary/body, including hover, keyboard focus, and disabled states.
+- 2026-10-16: Combined duplicate wet/dry and irrigation banners into one plain-language “Today's advice” card. Keep technical weather reasons and numeric water estimates out of the default dashboard view.
+- 2026-10-16: Weather sample banner traced to failed DNS resolution for `api.open-meteo.com`. Removed the prior paid customer-key branch per the new requirement: the free API needs no key. Fixed the request to use supported hourly soil layers instead of an unsupported daily soil-moisture field. Normal live failures now return an unavailable state (or same-location cache), not the bundled Hyderabad demo forecast.
+- 2026-10-16: Added current/hourly/daily data normalization, 15-minute in-memory cache, asynchronous thread wrapper with UI spinner, current weather and moisture estimates, 24-hour rain total, ET₀, and a collapsed 7-day forecast table/chart. Soil moisture is depth-weighted from Open-Meteo's supported hourly layers and used to update today's crop-specific root-zone stress estimate when the full profile is available; otherwise the existing water-balance estimate is used. Assumptions/limits are recorded in the main documentation.
+- 2026-10-16 verification: `python -m compileall -q app.py core pages tests`, `python -m pytest --basetemp=.pytest-tmp -q` (**31 passed**), and `git diff --check` passed.
 
 ## Verification log
 
 - Initial inspection: Python 3.12.10 available. Workspace had no Git repository; initialized a new `main` repository on 2026-10-16. No prior history existed.
 - `python -m compileall .` completed successfully after implementation.
 - `python -m pytest --basetemp=.pytest-tmp -q` completed: **18 passed**. The explicit basetemp is needed because the sandbox blocks pytest's default temp directory outside the workspace.
+- After the core dashboard simplification, `python -m pytest --basetemp=.pytest-tmp -q` completed: **29 passed**. Added a paired sand/clay pixel and slightly offset WCS grid regression test; `python -m compileall -q app.py core pages tests` passed. `git diff --check` passed (Git reports expected LF-to-CRLF normalization warnings on Windows).
+- WCS point lookup previously returned a valid Hyderabad estimate (Clay loam, nearest valid cell 395 m); WCS is best-effort and may return no data for other locations. Browser review is currently blocked by the in-app browser URL policy; do not bypass it. Streamlit startup did not reach its listening log/port check in this session, so no live server health pass is claimed.
 - `git diff --check` completed; only Git's Windows line-ending normalization warnings were emitted.
 - `core.weather._sample()` returned 67 rows with expected columns and the `OFFLINE DEMO DATA — sample weather` source label.
 - `python -m streamlit run app.py --server.headless true --server.port 8765` started Uvicorn and printed local/network URLs. The sandbox denied a local HTTP health request, so no browser or endpoint health check is claimed. Streamlit `AppTest` stalled before returning and was interrupted.
@@ -68,16 +77,18 @@ Read `JalRakshak_AI_Documentation.md` first, then `JalRakshak_AI_Master_Prompt.m
 - `GEMINI_API_KEY=` intentionally blank in `.env.example`. Optional Gemini explanations work only after the owner places their key in a local, untracked `.env` file.
 - `GEMINI_MODEL` defaults to `gemini-3.8-flash`; it can be changed in `.env` if account/model availability differs.
 - No key expected for Open-Meteo public endpoints. Network can be unavailable; offline sample mode is provided.
-- Photo classification requires `GEMINI_API_KEY` and internet. No key is in the repo; captured photos are not persisted. SoilGrids lookup is best-effort and currently may be unavailable; manually selected soil remains the fallback.
+- Photo classification requires `GEMINI_API_KEY` and internet. No key is in the repo; captured photos are not persisted. SoilGrids lookup is best-effort; no result falls back to the manually selected soil. Browser GPS prompts only on button click; users can search a place or enter coordinates instead.
 
-## Known implementation gaps to address
+## Remaining work / constraints
 
-- Audit the water-balance ordering: depletion should be updated using actual crop use `ETa` after stress coefficient calculation, and drainage/mass-balance should be confirmed with hand examples.
-- Validate sample data schema and realistic date rebasing; sample is generated and must always remain visibly labelled.
-- Add decision tests for all actions, rain-probability boundary, and quantity behavior.
-- Add weather cache/sample/offline mock tests and missing data tests.
-- Confirm Streamlit version supports all widgets used, especially optional date inputs and page links.
-- Complete optimizer integration or clearly record it as deferred; don't call the function a validated schedule optimizer until independently checked.
-- Audit UI error handling so external/provider errors never show raw stack traces.
-- Add and run smoke checks after fixing code. Update this file with actual observed results.
+- User visual review in the browser is still needed for the final dashboard and location controls; a programmatic page-render check stalled previously.
+- Keep ML training explicitly deferred until a suitable labelled, licensed soil-moisture dataset is obtained and validated. No dataset was downloaded in this task.
+- Public weather/geocoding access requires internet. When live and same-location cached responses are unavailable, the dashboard withholds advice instead of showing a misleading sample forecast.
+- Gemini photo analysis stays disabled until the owner adds a key in a local `.env`; do not put credentials in the repo.
+- Soil texture mapped from SoilGrids and moisture profile-derived root-zone depletion are approximate model estimates, not in-field measurements.
 - The project was built as one initial snapshot because no app/repository history existed; no phase-by-phase commits have been made yet. Create later phase commits after their checks pass.
+
+
+- 2026-10-16 (latest weather integration verification): Removed unnecessary `past_hours`/`forecast_hours` caps so Open-Meteo returns the full 60-day historical hourly series alongside the seven-day forecast. The rolling response had a null daily ET₀ and precipitation cell, causing the service to discard otherwise valid weather. Daily gaps now fill from same-location hourly totals where available; truly missing values still fail validation. Added a regression test. Exact default request returned 67 daily rows with 7 forecast days, 0 missing ET₀/precipitation values, current weather, and supported soil layers. The irrigation decision model ran using the API moisture profile (`SKIP_RAIN_EXPECTED`; `soil_moisture_used=True`). `compileall` passed; pytest: **36 passed**; `git diff --check` passed with Windows line-ending warnings. Home-page source text now accurately says advice is withheld when live and cached data are unavailable.
+
+- 2026-10-16: UI polish pass after browser review. Dashboard now has a premium botanical/glass hero, location and outlook chips, a clearer next-step panel, stronger weather tiles, and responsive mobile layout. Root cause of the previously plain screen was `st.markdown` not installing the global `<style>` block on Streamlit 1.66; `core.ui.apply_css()` now uses `st.html(Path(...styles.css))`, called from each main user-facing page. `.streamlit/config.toml` provides the same dark green palette as a native theme. Browser screenshot confirmed styled dashboard; local health endpoint returned HTTP 200. Keep the information architecture simple and do not restore removed technical panels.

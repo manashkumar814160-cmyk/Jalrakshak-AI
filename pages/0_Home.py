@@ -1,8 +1,9 @@
 import streamlit as st
 from core.config import OFFLINE
 from core.db import init_db, list_farms
-from core.ui import disclaimer
+from core.ui import apply_css, disclaimer
 
+apply_css()
 init_db()
 farms = list_farms()
 
@@ -20,7 +21,7 @@ st.markdown(
 if OFFLINE:
     st.warning("Demo mode is on. The weather shown is sample data, not today's actual forecast.")
 else:
-    st.info("Weather is fetched online when available. If it cannot be reached, the app uses saved or sample weather and labels the source.")
+    st.info("Weather is fetched for your saved field. If live weather and its saved copy are unavailable, the app will explain that it cannot calculate today's advice.")
 
 st.markdown("### Start in two steps")
 left, right = st.columns(2)

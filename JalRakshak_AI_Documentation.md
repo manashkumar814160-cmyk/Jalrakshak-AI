@@ -174,6 +174,14 @@ Important terms:
 
 The model updates its estimate using crop water use, effective rainfall, and logged irrigation. It limits the calculated depletion to physically reasonable model bounds.
 
+### Weather inputs and modelled soil moisture
+
+The live service calls Open-Meteo's free `/v1/forecast` endpoint with the saved field coordinates; no API key is required. Current air temperature, relative humidity, precipitation, rain and wind are requested as current/hourly values. Daily precipitation and FAO reference evapotranspiration (ET₀) supply the water-balance series. Open-Meteo's hourly soil-water layers use depths of 0–1, 1–3, 3–9, 9–27 and 27–81 cm. The dashboard's 0–7 cm and 7–28 cm figures are depth-weighted averages of those layers, retained as volumetric content (m³/m³) and shown as a percentage. They are weather-model estimates, not sensor measurements. The API provides the requested units and available layers; some model/location combinations can omit soil moisture.
+
+When a complete API profile covers the crop's current modeled root depth (at most 81 cm), the app estimates profile depletion as the difference between texture-specific field capacity and modelled volumetric water content, integrated across the root depth. Field capacity is approximated as the app's soil available-water value plus a texture-specific permanent-wilting-point assumption: Sandy 0.05, Sandy loam 0.08, Loamy 0.12, Clay loam 0.18 and Clay 0.27 m³/m³. These are coarse prototype assumptions, not lab-measured soil constants. That API-derived estimate updates today's crop-specific water-stress check; the existing water-balance forecast projects changes using crop ETc, rainfall and irrigation. If any required soil layer is missing or the crop root depth exceeds 81 cm, the recommendation falls back to the weather/crop/soil water-balance estimate without fabricating an API reading.
+
+The water-balance fallback begins at field capacity at the oldest day in its fetched history, counts 80% of rainfall of at least 2 mm as effective, and scales forecast rain by its probability. Crop coefficient, root depth and readily-available-water threshold vary by crop; available-water capacity varies by selected soil. Logged irrigation and field observations update the estimate. These simplified assumptions need field validation and can be wrong locally. The dashboard uses a recent per-location cache; if no live or cached forecast is available, it displays an unavailable message instead of giving advice based on another location's sample data. Bundled sample weather is used only when demo mode is explicitly enabled.
+
 ### Important limitation
 The app does not directly measure soil water. Its answer can be wrong if the starting condition, local soil, crop variety, rainfall, or irrigation log differs from the assumptions. A farmer can enter a Dry, Moist, or Wet observation to adjust the estimate, but this is still not a continuous sensor measurement.
 
